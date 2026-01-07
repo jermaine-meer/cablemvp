@@ -1,6 +1,7 @@
 ﻿name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main, master ]
   pull_request:
@@ -31,3 +32,4 @@ jobs:
       - name: Run tests (pytest)
         run: |
           pytest -q
+
