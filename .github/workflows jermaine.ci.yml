@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      test_passed: ${{ steps.tests.outcome }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f web/requirements.txt ]; then pip install -r web/requirements.txt; fi
+          pip install pytest flake8
+
+      - name: Lint (non-failing)
+        run: flake8 || true
+
+      - name: Run tests
+        id: tests
+        run: |
+          pytest -q
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: needs.test.result == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create SSL files from secrets
+        run: |
+          printf '%s\n' "${{ secrets.SSL_PRIVATE_KEY }}" > /tmp/privkey.pem
+          printf '%s\n' "${{ secrets.SSL_FULLCHAIN }}" > /tmp/fullchain.pem
+          chmod 600 /tmp/privkey.pem /tmp/fullchain.pem
+
+      - name: Install rsync / ssh
+        run: sudo apt-get update && sudo apt-get install -y openssh-client rsync
+
+      - name: Setup SSH key
+        env:
+          SSH_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+        run: |
+          printf '%s\n' "$SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          eval "$(ssh-agent -s)"
+          ssh-add /tmp/deploy_key
+
+      - name: Copy app + certs to server
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          rsync -avz --delete ./web/ "$DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/app/web/"
+          scp /tmp/fullchain.pem "$DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/ssl/fullchain.pem"
+          scp /tmp/privkey.pem "$DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/ssl/privkey.pem"
+
+      - name: Reload nginx on server
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          ssh -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" "sudo mkdir -p /etc/ssl/yourdomain && sudo mv /home/$DEPLOY_USER/ssl/fullchain.pem /etc/ssl/yourdomain/fullchain.pem && sudo mv /home/$DEPLOY_USER/ssl/privkey.pem /etc/ssl/yourdomain/privkey.pem && sudo chmod 640 /etc/ssl/yourdomain/privkey.pem && sudo nginx -t && sudo systemctl reload nginx"
