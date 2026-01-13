@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: install deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f web/requirements.txt ]; then pip install -r web/requirements.txt; fi
+          pip install pytest flake8
+
+      - name: debug secrets present
+        run: |
+          if [ -z "${{ secrets.SSL_PRIVATE_KEY }}" ]; then
+            echo "SSL_PRIVATE_KEY missing" && exit 1
+          else
+            echo "SSL_PRIVATE_KEY is set"
+          fi
+
+          if [ -z "${{ secrets.SSL_FULLCHAIN }}" ]; then
+            echo "SSL_FULLCHAIN missing" && exit 1
+          else
+            echo "SSL_FULLCHAIN is set"
+          fi
+
+      - name: flake8 lint (non-failing)
+        run: flake8 || true
+
+      - name: pytest
+        run: pytest -q
