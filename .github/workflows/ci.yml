@@ -1,3 +1,11 @@
+
+# lijst workflows
+ls -la .github/workflows
+
+# bekijk de inhoud
+cat .github/workflows/ci.yml | sed -n '1,200p'
+# of open in nano
+nano .github/workflows/ci.yml
 ﻿name: CI
 
 on:
