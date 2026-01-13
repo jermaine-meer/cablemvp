@@ -1,0 +1,13 @@
+- name: debug secrets present
+  run: |
+    if [ -z "${{ secrets.SSL_PRIVATE_KEY }}" ]; then
+      echo "SSL_PRIVATE_KEY missing" && exit 1
+    else
+      echo "SSL_PRIVATE_KEY is set"
+    fi
+
+    if [ -z "${{ secrets.SSL_FULLCHAIN }}" ]; then
+      echo "SSL_FULLCHAIN missing" && exit 1
+    else
+      echo "SSL_FULLCHAIN is set"
+    fi
