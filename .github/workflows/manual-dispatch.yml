@@ -1,0 +1,8 @@
+name: manual-dispatch-test
+on:
+  workflow_dispatch:
+jobs:
+  echo:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "dispatched ok"
